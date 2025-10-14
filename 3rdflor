@@ -1,0 +1,216 @@
+-- Criar UI separada para o 3rd Floor
+local thirdFloorUI = Instance.new("ScreenGui")
+thirdFloorUI.Name = "ThirdFloorUI"
+thirdFloorUI.ResetOnSpawn = false
+thirdFloorUI.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+
+-- Frame principal do 3rd Floor
+local thirdFrame = Instance.new("Frame")
+thirdFrame.Size = UDim2.new(0, 150, 0, 80)
+thirdFrame.Position = UDim2.new(0, 20, 0, 150)
+thirdFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+thirdFrame.BackgroundTransparency = 0.3
+thirdFrame.BorderSizePixel = 0
+thirdFrame.Active = true
+thirdFrame.Draggable = true
+thirdFrame.Parent = thirdFloorUI
+
+local thirdCorner = Instance.new("UICorner")
+thirdCorner.CornerRadius = UDim.new(0, 12)
+thirdCorner.Parent = thirdFrame
+
+-- Título
+local thirdTitle = Instance.new("TextLabel")
+thirdTitle.Size = UDim2.new(1, 0, 0, 25)
+thirdTitle.BackgroundTransparency = 1
+thirdTitle.Text = "3rd Floor"
+thirdTitle.Font = Enum.Font.Arcade
+thirdTitle.TextSize = 16
+thirdTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+thirdTitle.Parent = thirdFrame
+
+-- Botão de toggle
+local thirdToggle = Instance.new("TextButton")
+thirdToggle.Size = UDim2.new(0, 120, 0, 35)
+thirdToggle.Position = UDim2.new(0.5, -60, 0.5, -10)
+thirdToggle.Text = "OFF"
+thirdToggle.Font = Enum.Font.Arcade
+thirdToggle.TextSize = 16
+thirdToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+thirdToggle.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
+thirdToggle.AutoButtonColor = false
+thirdToggle.Parent = thirdFrame
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 8)
+toggleCorner.Parent = thirdToggle
+
+-- Código do 3rd Floor (função isolada)
+do
+    local player = game.Players.LocalPlayer
+    local runService = game:GetService("RunService")
+    local platform, connection
+    local active, isRising = false, false
+    local RISE_SPEED = 15
+
+    local function destroyPlatform()
+        if platform then 
+            platform:Destroy() 
+            platform = nil 
+        end
+        active = false 
+        isRising = false
+        
+        if connection then 
+            connection:Disconnect() 
+            connection = nil 
+        end
+        
+        -- Restaurar transparência das plots
+        local plots = workspace:FindFirstChild("Plots")
+        if plots then
+            for _, plot in pairs(plots:GetChildren()) do
+                for _, part in pairs(plot:GetDescendants()) do
+                    if part:IsA("BasePart") and part:GetAttribute("OriginalTransparency") then
+                        part.Transparency = part:GetAttribute("OriginalTransparency")
+                        part.CanCollide = part:GetAttribute("OriginalCanCollide")
+                    end
+                end
+            end
+        end
+        
+        thirdToggle.Text = "OFF"
+        thirdToggle.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
+    end
+
+    local function canRise()
+        if not platform then return false end
+        local origin = platform.Position + Vector3.new(0, platform.Size.Y / 2, 0)
+        local direction = Vector3.new(0, 2, 0)
+        local rayParams = RaycastParams.new()
+        rayParams.FilterDescendantsInstances = {platform, player.Character}
+        rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+        return not workspace:Raycast(origin, direction, rayParams)
+    end
+
+    local function setTransparencySpecific(part, transparency)
+        if part and part:IsA("BasePart") then
+            if not part:GetAttribute("OriginalTransparency") then
+                part:SetAttribute("OriginalTransparency", part.Transparency)
+            end
+            if not part:GetAttribute("OriginalCanCollide") then
+                part:SetAttribute("OriginalCanCollide", part.CanCollide)
+            end
+            part.Transparency = transparency
+            part.CanCollide = false
+        end
+    end
+
+    local function processAnimalPodium(podium)
+        local claim = podium:FindFirstChild("Claim")
+        if claim then
+            local hitbox = claim:FindFirstChild("Hitbox")
+            if hitbox then
+                pcall(function()
+                    if not hitbox:GetAttribute("OriginalTransparency") then
+                        hitbox:SetAttribute("OriginalTransparency", hitbox.Transparency)
+                        hitbox:SetAttribute("OriginalCanCollide", hitbox.CanCollide)
+                    end
+                    hitbox.Transparency = 0.5
+                    hitbox.CanCollide = false
+                end)
+            end
+        end
+        local base = podium:FindFirstChild("Base")
+        if base then
+            local spawn = base:FindFirstChild("Spawn")
+            setTransparencySpecific(spawn, 0.5)
+            local decorations = base:FindFirstChild("Decorations")
+            if decorations then
+                for _, child in pairs(decorations:GetChildren()) do
+                    if child:IsA("BasePart") then
+                        setTransparencySpecific(child, 0.5)
+                    end
+                end
+            end
+        end
+    end
+
+    local function activate3rdFloor()
+        local character = player.Character
+        if not character then return end
+        
+        local root = character:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+
+        platform = Instance.new("Part")
+        platform.Size = Vector3.new(6, 0.5, 6)
+        platform.Anchored = true
+        platform.CanCollide = true
+        platform.Transparency = 0
+        platform.Material = Enum.Material.Plastic
+        platform.Color = Color3.fromRGB(255, 200, 0)
+        platform.Position = root.Position - Vector3.new(0, root.Size.Y / 2 + platform.Size.Y / 2, 0)
+        platform.Parent = workspace
+
+        -- Aplicar transparência a Base Plots
+        local plots = workspace:FindFirstChild("Plots")
+        if plots then
+            for _, plot in pairs(plots:GetChildren()) do
+                for _, part in pairs(plot:GetDescendants()) do
+                    if part:IsA("BasePart") and (part.Name:lower():find("base plot") or part.Name:lower():find("base") or part.Name:lower():find("plot")) then
+                        setTransparencySpecific(part, 0.5)
+                    end
+                end
+                local animalPodiums = plot:FindFirstChild("AnimalPodiums")
+                if animalPodiums then
+                    for _, podium in pairs(animalPodiums:GetChildren()) do
+                        if podium:IsA("Model") or podium:IsA("Folder") then
+                            processAnimalPodium(podium)
+                        end
+                    end
+                end
+            end
+        end
+
+        isRising = true
+        connection = runService.Heartbeat:Connect(function(dt)
+            if platform and active and player.Character then
+                local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
+                if rootPart then
+                    local cur = platform.Position
+                    local newXZ = Vector3.new(rootPart.Position.X, cur.Y, rootPart.Position.Z)
+                    if isRising and canRise() then
+                        platform.Position = newXZ + Vector3.new(0, dt * RISE_SPEED, 0)
+                    else
+                        isRising = false
+                        platform.Position = newXZ
+                    end
+                end
+            end
+        end)
+
+        thirdToggle.Text = "ON"
+        thirdToggle.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+    end
+
+    -- Controle do botão
+    thirdToggle.MouseButton1Click:Connect(function()
+        active = not active
+        
+        if active then
+            activate3rdFloor()
+        else
+            destroyPlatform()
+        end
+    end)
+
+    -- Auto-destruir quando o personagem morrer
+    player.CharacterAdded:Connect(function(character)
+        character:WaitForChild("Humanoid").Died:Connect(destroyPlatform)
+    end)
+
+    if player.Character then
+        player.Character:WaitForChild("Humanoid").Died:Connect(destroyPlatform)
+    end
+end
