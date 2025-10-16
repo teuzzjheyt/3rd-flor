@@ -17,10 +17,6 @@ local xrayActive = false
 local originalTransparency = {}
 local originalCanCollide = {}
 
--- Variáveis para o Camera Down System
-local cameraDownActive = false
-local cameraConnection
-
 -- Variáveis para o Auto Laser Cape System
 local autoLaserEnabled = false
 local autoLaserIsBusy = false
@@ -233,51 +229,6 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- ========== SISTEMA CAMERA OLHANDO PARA BAIXO (SEM TRAVAR) ==========
-local function startCameraDown()
-    if cameraDownActive then return end
-    
-    cameraDownActive = true
-    
-    cameraConnection = RunService.Heartbeat:Connect(function()
-        if not cameraDownActive then
-            cameraConnection:Disconnect()
-            return
-        end
-        
-        local char = LocalPlayer.Character
-        if not char then return end
-        
-        local root = char:FindFirstChild("HumanoidRootPart")
-        local head = char:FindFirstChild("Head")
-        
-        if root then
-            -- Mantém a câmera olhando para baixo SEM travar
-            -- Permite que o jogador ainda mova a câmera
-            local currentCamera = Workspace.CurrentCamera
-            local cameraPosition = currentCamera.CFrame.Position
-            
-            -- Calcula a direção para baixo (ângulo de 50 graus)
-            local lookDirection = Vector3.new(0, -0.766, -0.643) -- 50 graus para baixo
-            
-            -- Cria um CFrame que olha para baixo a partir da posição atual da câmera
-            -- Isso permite que o jogador ainda mova a câmera, mas ela sempre estará inclinada para baixo
-            currentCamera.CFrame = CFrame.new(cameraPosition, cameraPosition + lookDirection)
-        end
-    end)
-end
-
-local function stopCameraDown()
-    if not cameraDownActive then return end
-    
-    cameraDownActive = false
-    
-    if cameraConnection then
-        cameraConnection:Disconnect()
-        cameraConnection = nil
-    end
-end
-
 -- ========== SISTEMA XRAY ==========
 local function setTransparencySpecific(part, transparency)
     if part and part:IsA("BasePart") then
@@ -397,9 +348,6 @@ local function startFly()
     if not autoLaserEnabled then
         toggleAutoLaser()
     end
-    if not cameraDownActive then
-        startCameraDown()
-    end
     
     humanoid.PlatformStand = false
 
@@ -449,10 +397,9 @@ local function startFly()
         root.Velocity = Vector3.new(0, verticalForce, 0)
     end)
     
-    -- Atualizar UI
+    -- Atualizar UI (apenas o botão)
     toggleButton.Text = "ON"
     toggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-    titleLabel.Text = "NEX HUB - ON"
 end
 
 local function stopFly()
@@ -463,9 +410,6 @@ local function stopFly()
     deactivateXRay()
     if autoLaserEnabled then
         toggleAutoLaser()
-    end
-    if cameraDownActive then
-        stopCameraDown()
     end
     
     if flyConnection then
@@ -486,10 +430,9 @@ local function stopFly()
         end
     end
     
-    -- Atualizar UI
+    -- Atualizar UI (apenas o botão)
     toggleButton.Text = "OFF"
     toggleButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
-    titleLabel.Text = "NEX HUB - OFF"
 end
 
 -- Função para toggle do Fly
@@ -539,9 +482,6 @@ LocalPlayer.CharacterAdded:Connect(function(character)
     if flying then
         stopFly()
     end
-    if cameraDownActive then
-        stopCameraDown()
-    end
     
     wait(1)
 end)
@@ -552,7 +492,6 @@ local function init()
         LocalPlayer:WaitForChild("Character")
     end
     wait(2)
-    
 
 end
 
