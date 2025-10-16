@@ -1,216 +1,565 @@
--- Criar UI separada para o 3rd Floor
-local thirdFloorUI = Instance.new("ScreenGui")
-thirdFloorUI.Name = "ThirdFloorUI"
-thirdFloorUI.ResetOnSpawn = false
-thirdFloorUI.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+-- Fly System com UI do Auto Farm + Key Bind + Sistemas Automáticos
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
 
--- Frame principal do 3rd Floor
-local thirdFrame = Instance.new("Frame")
-thirdFrame.Size = UDim2.new(0, 150, 0, 80)
-thirdFrame.Position = UDim2.new(0, 20, 0, 150)
-thirdFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-thirdFrame.BackgroundTransparency = 0.3
-thirdFrame.BorderSizePixel = 0
-thirdFrame.Active = true
-thirdFrame.Draggable = true
-thirdFrame.Parent = thirdFloorUI
+local LocalPlayer = Players.LocalPlayer
 
-local thirdCorner = Instance.new("UICorner")
-thirdCorner.CornerRadius = UDim.new(0, 12)
-thirdCorner.Parent = thirdFrame
+-- Variáveis para o Fly System
+local flying = false
+local flyConnection
+local isDescending = false
+
+-- Variáveis para o XRay System
+local xrayActive = false
+local originalTransparency = {}
+local originalCanCollide = {}
+
+-- Variáveis para o Camera Down System
+local cameraDownActive = false
+local cameraConnection
+
+-- Variáveis para o Auto Laser Cape System
+local autoLaserEnabled = false
+local autoLaserIsBusy = false
+local autoLaserConnection = nil
+local currentCapeEquipped = nil
+local previousToolName = nil
+
+-- Configurações do Fly
+local ascendSpeed = 80
+local descendSpeed = 15
+
+-- Variável para Key Bind
+local currentKeyBind = Enum.KeyCode.T
+
+-- ========== UI DO AUTO FARM ==========
+-- Criar UI do Auto Farm
+local autoFarmUI = Instance.new("ScreenGui")
+autoFarmUI.Name = "AutoFarmUI"
+autoFarmUI.ResetOnSpawn = false
+autoFarmUI.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+
+-- Frame principal do Auto Farm
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 150, 0, 80)
+mainFrame.Position = UDim2.new(0, 20, 0, 50)
+mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+mainFrame.BackgroundTransparency = 0.3
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = autoFarmUI
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = mainFrame
 
 -- Título
-local thirdTitle = Instance.new("TextLabel")
-thirdTitle.Size = UDim2.new(1, 0, 0, 25)
-thirdTitle.BackgroundTransparency = 1
-thirdTitle.Text = "3rd Floor"
-thirdTitle.Font = Enum.Font.Arcade
-thirdTitle.TextSize = 16
-thirdTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-thirdTitle.Parent = thirdFrame
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 0, 25)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "NEX HUB"
+titleLabel.Font = Enum.Font.Arcade
+titleLabel.TextSize = 16
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Parent = mainFrame
 
 -- Botão de toggle
-local thirdToggle = Instance.new("TextButton")
-thirdToggle.Size = UDim2.new(0, 120, 0, 35)
-thirdToggle.Position = UDim2.new(0.5, -60, 0.5, -10)
-thirdToggle.Text = "OFF"
-thirdToggle.Font = Enum.Font.Arcade
-thirdToggle.TextSize = 16
-thirdToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-thirdToggle.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
-thirdToggle.AutoButtonColor = false
-thirdToggle.Parent = thirdFrame
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 120, 0, 35)
+toggleButton.Position = UDim2.new(0.5, -60, 0.5, -10)
+toggleButton.Text = "OFF"
+toggleButton.Font = Enum.Font.Arcade
+toggleButton.TextSize = 16
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
+toggleButton.AutoButtonColor = false
+toggleButton.Parent = mainFrame
 
 local toggleCorner = Instance.new("UICorner")
 toggleCorner.CornerRadius = UDim.new(0, 8)
-toggleCorner.Parent = thirdToggle
+toggleCorner.Parent = toggleButton
 
--- Código do 3rd Floor (função isolada)
-do
-    local player = game.Players.LocalPlayer
-    local runService = game:GetService("RunService")
-    local platform, connection
-    local active, isRising = false, false
-    local RISE_SPEED = 15
-
-    local function destroyPlatform()
-        if platform then 
-            platform:Destroy() 
-            platform = nil 
-        end
-        active = false 
-        isRising = false
-        
-        if connection then 
-            connection:Disconnect() 
-            connection = nil 
-        end
-        
-        -- Restaurar transparência das plots
-        local plots = workspace:FindFirstChild("Plots")
-        if plots then
-            for _, plot in pairs(plots:GetChildren()) do
-                for _, part in pairs(plot:GetDescendants()) do
-                    if part:IsA("BasePart") and part:GetAttribute("OriginalTransparency") then
-                        part.Transparency = part:GetAttribute("OriginalTransparency")
-                        part.CanCollide = part:GetAttribute("OriginalCanCollide")
-                    end
-                end
-            end
-        end
-        
-        thirdToggle.Text = "OFF"
-        thirdToggle.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
+-- ========== SISTEMA AUTO LASER CAPE ==========
+local function equipLaserCape()
+    local laserCapeName = 'Laser Cape'
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass('Humanoid')
+    local backpack = LocalPlayer:FindFirstChild('Backpack')
+    
+    if not (hum and hum.Health > 0 and backpack) then
+        return false
     end
 
-    local function canRise()
-        if not platform then return false end
-        local origin = platform.Position + Vector3.new(0, platform.Size.Y / 2, 0)
-        local direction = Vector3.new(0, 2, 0)
-        local rayParams = RaycastParams.new()
-        rayParams.FilterDescendantsInstances = {platform, player.Character}
-        rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-        return not workspace:Raycast(origin, direction, rayParams)
+    -- Salvar a ferramenta atual se não for a laser cape
+    local currentTool = char:FindFirstChildOfClass('Tool')
+    if currentTool and currentTool.Name ~= laserCapeName then
+        previousToolName = currentTool.Name
     end
 
-    local function setTransparencySpecific(part, transparency)
-        if part and part:IsA("BasePart") then
-            if not part:GetAttribute("OriginalTransparency") then
-                part:SetAttribute("OriginalTransparency", part.Transparency)
-            end
-            if not part:GetAttribute("OriginalCanCollide") then
-                part:SetAttribute("OriginalCanCollide", part.CanCollide)
-            end
-            part.Transparency = transparency
-            part.CanCollide = false
-        end
+    -- Verificar se já está equipada
+    if currentTool and currentTool.Name == laserCapeName then
+        currentCapeEquipped = currentTool
+        return true
     end
 
-    local function processAnimalPodium(podium)
-        local claim = podium:FindFirstChild("Claim")
-        if claim then
-            local hitbox = claim:FindFirstChild("Hitbox")
-            if hitbox then
-                pcall(function()
-                    if not hitbox:GetAttribute("OriginalTransparency") then
-                        hitbox:SetAttribute("OriginalTransparency", hitbox.Transparency)
-                        hitbox:SetAttribute("OriginalCanCollide", hitbox.CanCollide)
-                    end
-                    hitbox.Transparency = 0.5
-                    hitbox.CanCollide = false
-                end)
-            end
-        end
-        local base = podium:FindFirstChild("Base")
-        if base then
-            local spawn = base:FindFirstChild("Spawn")
-            setTransparencySpecific(spawn, 0.5)
-            local decorations = base:FindFirstChild("Decorations")
-            if decorations then
-                for _, child in pairs(decorations:GetChildren()) do
-                    if child:IsA("BasePart") then
-                        setTransparencySpecific(child, 0.5)
-                    end
-                end
-            end
-        end
+    -- Equipar a laser cape
+    local cape = backpack:FindFirstChild(laserCapeName)
+    if cape then
+        hum:EquipTool(cape)
+        currentCapeEquipped = cape
+        task.wait(0.1)
+        return true
     end
+    
+    return false
+end
 
-    local function activate3rdFloor()
-        local character = player.Character
-        if not character then return end
+local function unequipAndRestore()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass('Humanoid')
+    local backpack = LocalPlayer:FindFirstChild('Backpack')
+    
+    if hum then
+        hum:UnequipTools()
+        currentCapeEquipped = nil
         
-        local root = character:FindFirstChild("HumanoidRootPart")
-        if not root then return end
+        -- Restaurar ferramenta anterior se existir
+        if previousToolName then
+            task.wait(0.1)
+            local previousTool = backpack:FindFirstChild(previousToolName)
+            if previousTool then
+                hum:EquipTool(previousTool)
+            end
+            previousToolName = nil
+        end
+    end
+end
 
-        platform = Instance.new("Part")
-        platform.Size = Vector3.new(6, 0.5, 6)
-        platform.Anchored = true
-        platform.CanCollide = true
-        platform.Transparency = 0
-        platform.Material = Enum.Material.Plastic
-        platform.Color = Color3.fromRGB(255, 200, 0)
-        platform.Position = root.Position - Vector3.new(0, root.Size.Y / 2 + platform.Size.Y / 2, 0)
-        platform.Parent = workspace
+local function shootLaser()
+    if autoLaserIsBusy then return end
+    autoLaserIsBusy = true
 
-        -- Aplicar transparência a Base Plots
-        local plots = workspace:FindFirstChild("Plots")
-        if plots then
-            for _, plot in pairs(plots:GetChildren()) do
-                for _, part in pairs(plot:GetDescendants()) do
-                    if part:IsA("BasePart") and (part.Name:lower():find("base plot") or part.Name:lower():find("base") or part.Name:lower():find("plot")) then
-                        setTransparencySpecific(part, 0.5)
-                    end
-                end
-                local animalPodiums = plot:FindFirstChild("AnimalPodiums")
-                if animalPodiums then
-                    for _, podium in pairs(animalPodiums:GetChildren()) do
-                        if podium:IsA("Model") or podium:IsA("Folder") then
-                            processAnimalPodium(podium)
-                        end
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass('Humanoid')
+    local remote = game:GetService("ReplicatedStorage"):FindFirstChild('Packages') 
+        and game:GetService("ReplicatedStorage").Packages:FindFirstChild('Net') 
+        and game:GetService("ReplicatedStorage").Packages.Net:FindFirstChild('RE/UseItem')
+
+    if not (hum and hum.Health > 0 and remote and currentCapeEquipped) then
+        autoLaserIsBusy = false
+        return
+    end
+
+    local myHrp = char:FindFirstChild('HumanoidRootPart')
+    if myHrp then
+        local maxDistance = 50
+        local closestDist, targetPart = maxDistance, nil
+        
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+                local targetHum = p.Character:FindFirstChildOfClass('Humanoid')
+                local targetTorso = p.Character:FindFirstChild('UpperTorso')
+                local targetHrp = p.Character:FindFirstChild('HumanoidRootPart')
+                if targetHum and targetHum.Health > 0 and targetTorso and targetHrp then
+                    local dist = (myHrp.Position - targetHrp.Position).Magnitude
+                    if dist < closestDist then
+                        closestDist, targetPart = dist, targetTorso
                     end
                 end
             end
         end
+        
+        if targetPart then
+            remote:FireServer(targetPart.Position, targetPart)
+        end
+    end
 
-        isRising = true
-        connection = runService.Heartbeat:Connect(function(dt)
-            if platform and active and player.Character then
-                local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
-                if rootPart then
-                    local cur = platform.Position
-                    local newXZ = Vector3.new(rootPart.Position.X, cur.Y, rootPart.Position.Z)
-                    if isRising and canRise() then
-                        platform.Position = newXZ + Vector3.new(0, dt * RISE_SPEED, 0)
-                    else
-                        isRising = false
-                        platform.Position = newXZ
-                    end
-                end
-            end
+    autoLaserIsBusy = false
+end
+
+local function doAutoLaserCycle()
+    if not autoLaserEnabled then return end
+    
+    -- Verificar se a laser cape está equipada, se não, equipar
+    if not currentCapeEquipped then
+        if not equipLaserCape() then
+            return
+        end
+    end
+    
+    -- Atirar
+    shootLaser()
+end
+
+local function toggleAutoLaser()
+    autoLaserEnabled = not autoLaserEnabled
+    
+    if autoLaserEnabled then
+        -- Equipar a laser cape ao iniciar
+        equipLaserCape()
+        
+        -- Iniciar o loop
+        autoLaserConnection = RunService.Heartbeat:Connect(function()
+            doAutoLaserCycle()
         end)
-
-        thirdToggle.Text = "ON"
-        thirdToggle.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-    end
-
-    -- Controle do botão
-    thirdToggle.MouseButton1Click:Connect(function()
-        active = not active
+    else
+        -- Parar o loop
+        if autoLaserConnection then
+            autoLaserConnection:Disconnect()
+            autoLaserConnection = nil
+        end
         
-        if active then
-            activate3rdFloor()
-        else
-            destroyPlatform()
+        -- Desequipar e restaurar ferramenta anterior
+        unequipAndRestore()
+    end
+end
+
+-- Verificar se a ferramenta foi desequipada manualmente
+RunService.Heartbeat:Connect(function()
+    if autoLaserEnabled and currentCapeEquipped then
+        local char = LocalPlayer.Character
+        if char then
+            local currentTool = char:FindFirstChildOfClass('Tool')
+            if currentTool ~= currentCapeEquipped then
+                -- A ferramenta foi desequipada manualmente, reequipar
+                task.wait(0.5) -- Pequeno delay para evitar spam
+                equipLaserCape()
+            end
+        end
+    end
+end)
+
+-- ========== SISTEMA CAMERA OLHANDO PARA BAIXO (SEM TRAVAR) ==========
+local function startCameraDown()
+    if cameraDownActive then return end
+    
+    cameraDownActive = true
+    
+    cameraConnection = RunService.Heartbeat:Connect(function()
+        if not cameraDownActive then
+            cameraConnection:Disconnect()
+            return
+        end
+        
+        local char = LocalPlayer.Character
+        if not char then return end
+        
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local head = char:FindFirstChild("Head")
+        
+        if root then
+            -- Mantém a câmera olhando para baixo SEM travar
+            -- Permite que o jogador ainda mova a câmera
+            local currentCamera = Workspace.CurrentCamera
+            local cameraPosition = currentCamera.CFrame.Position
+            
+            -- Calcula a direção para baixo (ângulo de 50 graus)
+            local lookDirection = Vector3.new(0, -0.766, -0.643) -- 50 graus para baixo
+            
+            -- Cria um CFrame que olha para baixo a partir da posição atual da câmera
+            -- Isso permite que o jogador ainda mova a câmera, mas ela sempre estará inclinada para baixo
+            currentCamera.CFrame = CFrame.new(cameraPosition, cameraPosition + lookDirection)
+        end
+    end)
+end
+
+local function stopCameraDown()
+    if not cameraDownActive then return end
+    
+    cameraDownActive = false
+    
+    if cameraConnection then
+        cameraConnection:Disconnect()
+        cameraConnection = nil
+    end
+end
+
+-- ========== SISTEMA XRAY ==========
+local function setTransparencySpecific(part, transparency)
+    if part and part:IsA("BasePart") then
+        if not originalTransparency[part] then
+            originalTransparency[part] = part.Transparency
+        end
+        if not originalCanCollide[part] then
+            originalCanCollide[part] = part.CanCollide
+        end
+        part.Transparency = transparency
+    end
+end
+
+local function restoreTransparency(part)
+    if part and part:IsA("BasePart") then
+        if originalTransparency[part] then
+            part.Transparency = originalTransparency[part]
+        end
+        if originalCanCollide[part] then
+            part.CanCollide = originalCanCollide[part]
+        end
+    end
+end
+
+local function processAnimalPodium(podium)
+    local claim = podium:FindFirstChild("Claim")
+    if claim then
+        local hitbox = claim:FindFirstChild("Hitbox")
+        if hitbox then
+            pcall(function()
+                setTransparencySpecific(hitbox, 0.5)
+            end)
+        end
+    end
+    local base = podium:FindFirstChild("Base")
+    if base then
+        local spawn = base:FindFirstChild("Spawn")
+        if spawn then
+            setTransparencySpecific(spawn, 0.5)
+        end
+        local decorations = base:FindFirstChild("Decorations")
+        if decorations then
+            for _, child in pairs(decorations:GetChildren()) do
+                if child:IsA("BasePart") then
+                    setTransparencySpecific(child, 0.5)
+                end
+            end
+        end
+    end
+end
+
+local function activateXRay()
+    if xrayActive then return end
+    
+    xrayActive = true
+    originalTransparency = {}
+    originalCanCollide = {}
+    
+    -- Aplicar transparência a Base Plots
+    local plots = Workspace:FindFirstChild("Plots")
+    if plots then
+        for _, plot in pairs(plots:GetChildren()) do
+            for _, part in pairs(plot:GetDescendants()) do
+                if part:IsA("BasePart") and (part.Name:lower():find("base plot") or part.Name:lower():find("base") or part.Name:lower():find("plot")) then
+                    setTransparencySpecific(part, 0.5)
+                end
+            end
+            local animalPodiums = plot:FindFirstChild("AnimalPodiums")
+            if animalPodiums then
+                for _, podium in pairs(animalPodiums:GetChildren()) do
+                    if podium:IsA("Model") or podium:IsA("Folder") then
+                        processAnimalPodium(podium)
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function deactivateXRay()
+    if not xrayActive then return end
+    
+    xrayActive = false
+    
+    -- Restaurar transparência das plots
+    local plots = Workspace:FindFirstChild("Plots")
+    if plots then
+        for _, plot in pairs(plots:GetChildren()) do
+            for _, part in pairs(plot:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    restoreTransparency(part)
+                end
+            end
+        end
+    end
+    
+    originalTransparency = {}
+    originalCanCollide = {}
+end
+
+-- ========== SISTEMA FLY ==========
+local function startFly()
+    if flying then return end
+    
+    local char = LocalPlayer.Character
+    if not char then return end
+    
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    
+    if not humanoid or not root then return end
+    
+    flying = true
+    
+    -- ATIVA TODOS OS SISTEMAS AUTOMATICAMENTE QUANDO O FLY COMEÇA
+    activateXRay()
+    if not autoLaserEnabled then
+        toggleAutoLaser()
+    end
+    if not cameraDownActive then
+        startCameraDown()
+    end
+    
+    humanoid.PlatformStand = false
+
+    -- Conexão para tecla Ctrl (descida manual)
+    local inputEndConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.KeyCode == Enum.KeyCode.LeftControl then
+            isDescending = true
+        end
+    end)
+    
+    local inputEndConnection2 = UserInputService.InputEnded:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.KeyCode == Enum.KeyCode.LeftControl then
+            isDescending = false
         end
     end)
 
-    -- Auto-destruir quando o personagem morrer
-    player.CharacterAdded:Connect(function(character)
-        character:WaitForChild("Humanoid").Died:Connect(destroyPlatform)
+    flyConnection = RunService.Heartbeat:Connect(function(dt)
+        if not flying or not char or not char.Parent then
+            if inputEndConnection then
+                inputEndConnection:Disconnect()
+            end
+            if inputEndConnection2 then
+                inputEndConnection2:Disconnect()
+            end
+            return
+        end
+        
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        
+        -- Controle de altura APENAS
+        local verticalForce = 0
+        
+        if isDescending then
+            -- Se Ctrl pressionado, desce
+            verticalForce = -descendSpeed
+        else
+            -- Se não está descendo, sobe automaticamente
+            verticalForce = ascendSpeed
+        end
+        
+        -- Aplica movimento APENAS vertical
+        root.Velocity = Vector3.new(0, verticalForce, 0)
     end)
+    
+    -- Atualizar UI
+    toggleButton.Text = "ON"
+    toggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+    titleLabel.Text = "NEX HUB - ON"
+end
 
-    if player.Character then
-        player.Character:WaitForChild("Humanoid").Died:Connect(destroyPlatform)
+local function stopFly()
+    flying = false
+    isDescending = false
+    
+    -- DESATIVA TODOS OS SISTEMAS AUTOMATICAMENTE QUANDO O FLY PARA
+    deactivateXRay()
+    if autoLaserEnabled then
+        toggleAutoLaser()
     end
+    if cameraDownActive then
+        stopCameraDown()
+    end
+    
+    if flyConnection then
+        flyConnection:Disconnect()
+        flyConnection = nil
+    end
+    
+    local char = LocalPlayer.Character
+    if char then
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.PlatformStand = false
+            humanoid.AutoRotate = true
+        end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            root.Velocity = Vector3.new(0, 0, 0)
+        end
+    end
+    
+    -- Atualizar UI
+    toggleButton.Text = "OFF"
+    toggleButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
+    titleLabel.Text = "NEX HUB - OFF"
+end
+
+-- Função para toggle do Fly
+local function toggleFly()
+    if flying then
+        stopFly()
+    else
+        startFly()
+    end
+end
+
+-- ========== SISTEMA KEY BIND ==========
+local keyBindConnection
+keyBindConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    -- Tecla T para ligar/desligar todos os sistemas
+    if input.KeyCode == currentKeyBind then
+        toggleFly()
+    end
+end)
+
+-- Conectar botão da UI
+toggleButton.MouseButton1Click:Connect(function()
+    toggleFly()
+end)
+
+-- Efeitos hover no botão
+toggleButton.MouseEnter:Connect(function()
+    if flying then
+        TweenService:Create(toggleButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 200, 0)}):Play()
+    else
+        TweenService:Create(toggleButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 50, 50)}):Play()
+    end
+end)
+
+toggleButton.MouseLeave:Connect(function()
+    if flying then
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+    else
+        toggleButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
+    end
+end)
+
+-- Limpar quando o personagem morrer
+LocalPlayer.CharacterAdded:Connect(function(character)
+    if flying then
+        stopFly()
+    end
+    if cameraDownActive then
+        stopCameraDown()
+    end
+    
+    wait(1)
+end)
+
+-- Inicialização
+local function init()
+    if not LocalPlayer.Character then
+        LocalPlayer:WaitForChild("Character")
+    end
+    wait(2)
+    
+
+end
+
+-- Iniciar o script
+local success, errorMessage = pcall(init)
+if not success then
+    warn("❌ Erro ao inicializar NEX HUB: " .. tostring(errorMessage))
+    wait(3)
+    pcall(init)
 end
