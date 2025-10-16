@@ -24,9 +24,9 @@ local autoLaserConnection = nil
 local currentCapeEquipped = nil
 local previousToolName = nil
 
--- Configurações do Fly
-local ascendSpeed = 80
-local descendSpeed = 15
+-- Configurações do Fly - VELOCIDADE REDUZIDA
+local ascendSpeed = 25  -- Reduzido de 80 para 25
+local descendSpeed = 10 -- Reduzido de 15 para 10
 
 -- Variável para Key Bind
 local currentKeyBind = Enum.KeyCode.T
@@ -492,7 +492,6 @@ local function init()
         LocalPlayer:WaitForChild("Character")
     end
     wait(2)
-
 end
 
 -- Iniciar o script
