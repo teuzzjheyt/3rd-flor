@@ -397,7 +397,7 @@ local function startFly()
         root.Velocity = Vector3.new(0, verticalForce, 0)
     end)
     
-    -- Atualizar UI (apenas o botão)
+    -- Atualizar UI
     toggleButton.Text = "ON"
     toggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
 end
@@ -430,7 +430,7 @@ local function stopFly()
         end
     end
     
-    -- Atualizar UI (apenas o botão)
+    -- Atualizar UI
     toggleButton.Text = "OFF"
     toggleButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
 end
