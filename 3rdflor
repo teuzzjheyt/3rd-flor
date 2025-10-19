@@ -41,7 +41,7 @@ autoFarmUI.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 -- Frame principal do Auto Farm
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 150, 0, 80)
-mainFrame.Position = UDim2.new(0, 20, 0, 50)
+mainFrame.Position = UDim2.new(0, 10, 0, 60)
 mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 mainFrame.BackgroundTransparency = 0.3
 mainFrame.BorderSizePixel = 0
